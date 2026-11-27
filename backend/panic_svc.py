@@ -53,7 +53,7 @@ def panic_official(body: dict, authorization: str | None = Header(default=None))
     screen_id = require_positive_int(body.get("screen_id"), "屏幕编号")
     reason = require_title(body.get("reason") or "紧急撤屏", "原因")
     lock_key = f"publish:{screen_id}"
-    acquire(lock_key, user["username"])
+    request_id = acquire(lock_key, user["username"])
     try:
         with connect() as conn:
             screen = conn.execute("SELECT * FROM screens WHERE id=?", (screen_id,)).fetchone()
@@ -79,7 +79,7 @@ def panic_official(body: dict, authorization: str | None = Header(default=None))
         write_audit(user["username"], "panic.official", {"id": eid, "screen_id": screen_id})
         return {"id": eid, "path": "official"}
     finally:
-        release(lock_key, user["username"])
+        release(lock_key, user["username"], request_id)
 
 
 @router.post("/shadow")
@@ -113,7 +113,7 @@ def promote_panic(shadow_id: int, authorization: str | None = Header(default=Non
         screen_id = sh["screen_id"]
         reason = sh["reason"]
     lock_key = f"publish:{screen_id}"
-    acquire(lock_key, user["username"])
+    request_id = acquire(lock_key, user["username"])
     try:
         with connect() as conn:
             conn.execute("DELETE FROM publications WHERE screen_id=? AND official=1", (screen_id,))
@@ -131,4 +131,4 @@ def promote_panic(shadow_id: int, authorization: str | None = Header(default=Non
         write_history("panic", eid, "promote_shadow", reason, user["username"])
         return {"id": eid, "path": "shadow_promote"}
     finally:
-        release(lock_key, user["username"])
+        release(lock_key, user["username"], request_id)

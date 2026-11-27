@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from models import DOMAIN, PRODUCT_NAME, SKELETON, SUB_DIRECTION, USERS
@@ -24,10 +25,32 @@ PRODUCT_META = {
 
 def connect() -> sqlite3.Connection:
     DATA.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
+
+
+@contextmanager
+def immediate_transaction(timeout: float = 30.0):
+    """BEGIN IMMEDIATE 写事务：进入即取库级写锁，串行化同屏并发发布。
+
+    普通连接默认 DEFERRED，首条写语句才抢锁；高风险发布需要在版本计算前
+    就把并发请求排队，避免两路请求同读旧版本后连写两版。
+    timeout 为库写锁争用的 busy 等待秒数（锁路径传短值快速失败）。
+    """
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=timeout)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 SCHEMA = """
@@ -106,6 +129,7 @@ CREATE TABLE IF NOT EXISTS publications(
   summary TEXT NOT NULL,
   status TEXT NOT NULL,
   official INTEGER NOT NULL DEFAULT 1,
+  field_ticket_no TEXT NOT NULL DEFAULT '',
   published_at REAL,
   published_by TEXT,
   UNIQUE(screen_id, official)
@@ -118,6 +142,7 @@ CREATE TABLE IF NOT EXISTS publish_shadows(
   layout_id INTEGER REFERENCES layouts(id),
   summary TEXT NOT NULL,
   status TEXT NOT NULL,
+  field_ticket_no TEXT NOT NULL DEFAULT '',
   created_at REAL NOT NULL,
   created_by TEXT NOT NULL
 );
@@ -273,7 +298,7 @@ def _seed(conn: sqlite3.Connection) -> None:
     layout_map = {r["code"]: r["id"] for r in conn.execute("SELECT id,code FROM layouts")}
     for pub in _load_json("publications.json"):
         conn.execute(
-            "INSERT INTO publications(screen_id,playlist_id,window_id,layout_id,version,summary,status,official,published_at,published_by) VALUES(?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO publications(screen_id,playlist_id,window_id,layout_id,version,summary,status,official,field_ticket_no,published_at,published_by) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
             (
                 screen_map[pub["screen_code"]],
                 pl_map[pub["playlist_code"]],
@@ -283,6 +308,7 @@ def _seed(conn: sqlite3.Connection) -> None:
                 pub["summary"],
                 pub["status"],
                 1,
+                pub.get("field_ticket_no", ""),
                 now,
                 pub.get("published_by", "admin"),
             ),
@@ -295,9 +321,26 @@ def _seed(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """老库幂等加列：场控单号（signboard-01）。SQLite 路径保持原样。"""
+    existing = {
+        r["name"]
+        for r in conn.execute("PRAGMA table_info(publications)").fetchall()
+    }
+    if "field_ticket_no" not in existing:
+        conn.execute("ALTER TABLE publications ADD COLUMN field_ticket_no TEXT NOT NULL DEFAULT ''")
+    shadow_cols = {
+        r["name"]
+        for r in conn.execute("PRAGMA table_info(publish_shadows)").fetchall()
+    }
+    if "field_ticket_no" not in shadow_cols:
+        conn.execute("ALTER TABLE publish_shadows ADD COLUMN field_ticket_no TEXT NOT NULL DEFAULT ''")
+
+
 def init_db() -> None:
     with connect() as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         _seed(conn)
 
 

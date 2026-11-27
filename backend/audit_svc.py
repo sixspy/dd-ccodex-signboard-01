@@ -30,11 +30,18 @@ def write_history(entity_kind: str, entity_id: int, action: str, detail: str, ac
 
 
 @router.get("/recent")
-def recent(limit: int = 50, authorization: str | None = Header(default=None)):
+def recent(limit: int = 50, action: str | None = None, authorization: str | None = Header(default=None)):
     current_user(authorization)
+    capped = max(1, min(limit, 200))
     with connect() as conn:
-        rows = conn.execute(
-            "SELECT * FROM audit_log ORDER BY id DESC LIMIT ?",
-            (max(1, min(limit, 200)),),
-        ).fetchall()
+        if action:
+            rows = conn.execute(
+                "SELECT * FROM audit_log WHERE action=? ORDER BY id DESC LIMIT ?",
+                (action.strip(), capped),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM audit_log ORDER BY id DESC LIMIT ?",
+                (capped,),
+            ).fetchall()
     return {"items": rows_to_list(rows)}

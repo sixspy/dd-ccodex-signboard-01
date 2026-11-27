@@ -4,7 +4,7 @@ window.SB_VIEWS["zones-view"] = {
   <div>
     <div class="panel">
       <h2>楼宇分区</h2>
-      <p class="lead">分区约束风险等级与可发布屏幕范围。</p>
+      <p class="lead">分区约束风险等级与可发布屏幕范围；风险≥4 的分区正式上屏须附场控单号。</p>
       <div class="row-form">
         <input v-model="form.code" placeholder="编码" />
         <input v-model="form.title" placeholder="标题" />
@@ -22,11 +22,16 @@ window.SB_VIEWS["zones-view"] = {
     </div>
     <div class="panel">
       <table>
-        <thead><tr><th>编码</th><th>标题</th><th>类型</th><th>风险</th><th>楼层</th></tr></thead>
+        <thead><tr><th>编码</th><th>标题</th><th>类型</th><th>风险</th><th>场控要求</th><th>楼层</th></tr></thead>
         <tbody>
           <tr v-for="z in items" :key="z.id">
             <td>{{ z.code }}</td><td>{{ z.title }}</td><td>{{ z.zone_type_label }}</td>
-            <td>{{ z.risk_label }}</td><td>{{ z.floor_label || "—" }}</td>
+            <td>{{ z.risk_label }}</td>
+            <td>
+              <span v-if="z.ticket_required" class="badge bad">风险≥4 · 须场控单</span>
+              <span v-else class="badge">常规发布</span>
+            </td>
+            <td>{{ z.floor_label || "—" }}</td>
           </tr>
         </tbody>
       </table>

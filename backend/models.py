@@ -83,6 +83,10 @@ RISK_LEVELS = {
     5: "政务敏感区",
 }
 
+# signboard-01：风险等级达到该阈值的分区，正式上屏必须同票写入场控单号
+TICKET_REQUIRED_RISK = 4
+TICKET_REQUIRED_HINT = "高风险分区（风险≥4）正式上屏必须填写场控单号"
+
 DEFAULT_DURATIONS = {
     "image": 12,
     "video": 30,

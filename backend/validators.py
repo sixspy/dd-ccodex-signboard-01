@@ -109,6 +109,16 @@ def require_positive_int(value, label: str, lo: int = 1, hi: int = 86400) -> int
     return n
 
 
+def require_field_ticket(value) -> str:
+    """场控单号：去空白后非空即同票落库；空白按缺号处理。"""
+    ticket = (value or "").strip()
+    if not ticket:
+        raise HTTPException(400, "高风险分区（风险≥4）正式上屏必须填写场控单号")
+    if len(ticket) > 64:
+        raise HTTPException(400, "场控单号长度不得超过 64")
+    return ticket
+
+
 def hm_to_min(hm: str) -> int:
     h, m = hm.split(":")
     return int(h) * 60 + int(m)

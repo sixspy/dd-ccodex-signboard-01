@@ -49,7 +49,7 @@ def override_official(body: dict, authorization: str | None = Header(default=Non
     asset_id = body.get("asset_id")
     assert_override_payload(effect, playlist_id, asset_id)
     lock_key = f"override:{screen_id}"
-    acquire(lock_key, user["username"])
+    request_id = acquire(lock_key, user["username"])
     try:
         with connect() as conn:
             if not conn.execute("SELECT id FROM screens WHERE id=?", (screen_id,)).fetchone():
@@ -78,7 +78,7 @@ def override_official(body: dict, authorization: str | None = Header(default=Non
         write_audit(user["username"], "override.official", {"id": oid})
         return {"id": oid, "path": "official"}
     finally:
-        release(lock_key, user["username"])
+        release(lock_key, user["username"], request_id)
 
 
 @router.post("/shadow")
@@ -121,7 +121,7 @@ def promote_override(shadow_id: int, authorization: str | None = Header(default=
             raise HTTPException(409, "影子不可升正")
         screen_id = sh["screen_id"]
     lock_key = f"override:{screen_id}"
-    acquire(lock_key, user["username"])
+    request_id = acquire(lock_key, user["username"])
     try:
         with connect() as conn:
             sh = conn.execute("SELECT * FROM override_shadows WHERE id=?", (shadow_id,)).fetchone()
@@ -149,4 +149,4 @@ def promote_override(shadow_id: int, authorization: str | None = Header(default=
         write_history("override", oid, "promote_shadow", sh["effect"], user["username"])
         return {"id": oid, "path": "shadow_promote"}
     finally:
-        release(lock_key, user["username"])
+        release(lock_key, user["username"], request_id)

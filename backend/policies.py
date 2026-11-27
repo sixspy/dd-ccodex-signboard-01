@@ -3,10 +3,20 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
+from models import TICKET_REQUIRED_HINT, TICKET_REQUIRED_RISK
+from validators import require_field_ticket
+
 
 def assert_zone_risk_for_outdoor(zone_type: str, risk_level: int) -> None:
     if zone_type == "outdoor" and risk_level < 3:
         raise HTTPException(400, "室外分区风险等级至少为 3")
+
+
+def assert_field_ticket_for_risk(risk_level: int, field_ticket_no) -> str:
+    """风险≥4 的分区正式上屏必须同票带场控单号；低风险返回空串。"""
+    if risk_level >= TICKET_REQUIRED_RISK:
+        return require_field_ticket(field_ticket_no)
+    return (field_ticket_no or "").strip()
 
 
 def assert_playlist_ready(status: str) -> None:
@@ -53,4 +63,5 @@ POLICY_NOTES = [
     "单屏覆盖激活时求值优先覆盖条目",
     "影子草案升正前正式区零改",
     "维保屏幕只允许查看不可发布",
+    TICKET_REQUIRED_HINT,
 ]

@@ -76,6 +76,8 @@ def evaluate_screen(body: dict, authorization: str | None = Header(default=None)
             "version": pub["version"],
             "playlist_id": pub["playlist_id"],
             "window_id": pub["window_id"],
+            # 与正式发布行同票；低风险分区为空串。未升正影子不在 publications，绝不参与求值
+            "field_ticket_no": pub["field_ticket_no"],
             "play": {"kind": "playlist", "items": items},
             "now_hm": now_hm,
         }

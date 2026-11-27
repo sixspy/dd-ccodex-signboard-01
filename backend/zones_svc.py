@@ -6,7 +6,7 @@ from fastapi import APIRouter, Header, HTTPException
 from audit_svc import write_history
 from auth import current_user, require_writer
 from db import connect, rows_to_list
-from models import RISK_LEVELS, ZONE_TYPE_LABEL
+from models import RISK_LEVELS, TICKET_REQUIRED_RISK, ZONE_TYPE_LABEL
 from policies import assert_zone_risk_for_outdoor
 from validators import require_code, require_positive_int, require_title, require_zone_type
 
@@ -21,6 +21,7 @@ def list_zones(authorization: str | None = Header(default=None)):
     for r in rows:
         r["zone_type_label"] = ZONE_TYPE_LABEL.get(r["zone_type"], r["zone_type"])
         r["risk_label"] = RISK_LEVELS.get(r["risk_level"], str(r["risk_level"]))
+        r["ticket_required"] = r["risk_level"] >= TICKET_REQUIRED_RISK
     return {"items": rows}
 
 
